@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class BayesianCoresetAlgorithm():
 
     def __init__(self, X, y = None):
