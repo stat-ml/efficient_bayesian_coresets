@@ -158,16 +158,16 @@ class GIGA(BayesianCoresetAlgorithm):
 
         numerator = (ell - np.sum(ell * ell_w) * ell_w).reshape(-1, 1)
         dt = (numerator / np.linalg.norm(numerator)).reshape(-1, 1)
-        dt[np.linalg.norm(numerator) == 0] = 0
         
         norm_ell_n = np.linalg.norm(likelihood_vectors, axis = 1).reshape(-1, 1)
-        likelihood_vectors = likelihood_vectors / norm_ell_n
+        likelihood_vectors = likelihood_vectors / (norm_ell_n + 1e-8)
+        likelihood_vectors[norm_ell_n.flatten() == 0] = np.zeros(likelihood_vectors.shape[1])
 
-        ell_w_matrix = np.ones_like(likelihood_vectors).T * ell_w
+        ell_w_matrix = np.tile(ell_w, self.n).reshape(self.n, -1)
 
-        numerator = likelihood_vectors.T - np.sum(likelihood_vectors.T * ell_w, axis = 0).reshape(1, self.n) * ell_w_matrix
-        dtn = (numerator / (np.linalg.norm(numerator, axis = 0) + 1e-8)).reshape(self.n, -1)
-        dtn[np.linalg.norm(numerator, axis = 0) == 0] = 0
+        numerator = likelihood_vectors - likelihood_vectors @ ell_w * ell_w_matrix
+        dtn = (numerator / (np.linalg.norm(numerator, axis = 1) + 1e-8).reshape(-1, 1)).reshape(self.n, -1)
+        dtn[np.linalg.norm(numerator, axis = 1) == 0] = np.zeros(likelihood_vectors.shape[1])
 
         return dt, dtn
 
@@ -193,7 +193,7 @@ class GIGA(BayesianCoresetAlgorithm):
 
         # Compute the step size
         numerator = zeta0 - zeta1 * zeta2
-        denominator = zeta0 - zeta1 * zeta2 + zeta1 - zeta0 * zeta2 + 1e-8
+        denominator = zeta0 - zeta1 * zeta2 + zeta1 - zeta0 * zeta2
         gamma = numerator / denominator
 
         if gamma < 0:
@@ -292,15 +292,18 @@ class IHT(BayesianCoresetAlgorithm):
         '''
         Implementation of Step 3 of Generic Algorithm
         '''
-        all_indexes = set(np.arange(len(gradients)).flatten().tolist())
+        all_indexes = set(np.arange(len(gradients.flatten())).tolist())
         z_indexes = set(self.I)
         proj_indexes = list(all_indexes - z_indexes)
-        
-        proj_indexes = set(proj_indexes[np.argsort(gradients[proj_indexes])[-k:].flatten().tolist()])
-        total_indeces = list(z_indexes.union(proj_indexes))
+
+        to_project = gradients.flatten()[proj_indexes]
+        ind_in_to_project = np.argsort(to_project)[-k:].tolist()
+        ind_in_proj_indexes = np.array(proj_indexes)[ind_in_to_project]
+        total_indeces = list(z_indexes.union(ind_in_proj_indexes))
 
         upd_grad = np.zeros_like(gradients)
         upd_grad[total_indeces] = gradients[total_indeces]
+
         return upd_grad
 
     def __update_weights(self, gradients, tilde_gradients, likelihood_vectors, z, k):
@@ -311,10 +314,15 @@ class IHT(BayesianCoresetAlgorithm):
         y = np.sum(likelihood_vectors, axis = 0).reshape(-1, 1)
 
         mu = np.square(np.linalg.norm(tilde_gradients)) / (2 * np.square(np.linalg.norm(phi @ tilde_gradients)))
+
+        # Projection
         w_new = z - mu * gradients
-        w_new[list(set(np.arange(len(w_new)).flatten().tolist()) - set(np.argsort(w_new)[-k:].flatten().tolist()))] = 0
+        w_new[w_new < 0] = 0
+        n_k_smallest = np.argsort(w_new.flatten())[:(self.n - k)].tolist()
+        w_new[n_k_smallest] = 0
         w_new = w_new.reshape(-1, 1)
-        tau = np.sum((y - phi @ w_new) * (phi @ (w_new - self.w)))
+
+        tau = np.sum((y - phi @ w_new) * (phi @ (w_new - self.w))) / (2 * np.square(np.linalg.norm(phi @ (w_new - self.w))))
         z_new = w_new + tau * (w_new - self.w)
 
         return w_new, z_new
@@ -333,7 +341,7 @@ class IHT(BayesianCoresetAlgorithm):
         # Initialization
         z = np.zeros_like(self.w).reshape(-1, 1)
 
-        for _ in range(k):
+        for iter in range(1000):
             # Step 2
             gradients = self.__estimate_directions(likelihood_vectors, z)
 
@@ -341,7 +349,15 @@ class IHT(BayesianCoresetAlgorithm):
             tilde_gradients = self.__choose_next_index(gradients, k)
 
             # Step 4
-            self.w, z = self.__update_weights(gradients, tilde_gradients, likelihood_vectors, z, k)
-            self.I = np.arange(len(self.w))[self.w[:, 0] > 0].tolist()
+            w_new, z = self.__update_weights(gradients, tilde_gradients, likelihood_vectors, z, k)
+
+            if np.linalg.norm(w_new - self.w) <= np.linalg.norm(self.w) * 1e-5:
+                self.w = w_new
+                break
+            
+            self.w = w_new
+            self.I = np.arange(self.n)[z.flatten() > 0].tolist()
+            
+        self.I = np.arange(self.n)[self.w.flatten() > 0].tolist()
 
         return self.w, self.I
