@@ -82,6 +82,7 @@ class SensitivityBasedFW(BayesianCoresetAlgorithm):
         '''
         Implementation of Generic Algorithm
         '''
+        
         # Step 1
         if likelihood_gram_matrix is None:
             if norm.lower() not in ["2", "f"]:

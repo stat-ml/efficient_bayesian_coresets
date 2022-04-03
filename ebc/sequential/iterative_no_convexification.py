@@ -215,12 +215,13 @@ class GIGA(BayesianCoresetAlgorithm):
         '''
         Implementation of Generic Algorithm
         '''
+
         # Step 1
         if likelihood_vectors is None:
             likelihood_vectors = self.__estimate_likelihood_gram_matrix(norm, norm_attributes)
         
         ell_w = np.zeros(likelihood_vectors.shape[1]).reshape(-1, 1)
-        
+
         for _ in range(k):
             # Step 2
             dt, dtn = self.__estimate_directions(likelihood_vectors, ell_w)
@@ -331,6 +332,7 @@ class IHT(BayesianCoresetAlgorithm):
         '''
         Implementation of Generic Algorithm
         '''
+
         # Step 1
         if likelihood_vectors is None:
             if norm.lower() not in ["2", "f"]:
@@ -340,8 +342,8 @@ class IHT(BayesianCoresetAlgorithm):
 
         # Initialization
         z = np.zeros_like(self.w).reshape(-1, 1)
-
-        for iter in range(1000):
+        
+        for _ in range(1000):
             # Step 2
             gradients = self.__estimate_directions(likelihood_vectors, z)
 
