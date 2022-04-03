@@ -1,8 +1,8 @@
-from bca import BayesianCoresetAlgorithm
+from ebc.bca import BayesianCoresetAlgorithm
 import numpy as np
 from sklearn.cluster import KMeans
 from collections import Counter
-from approximations import random_kitchen_sinks
+from ebc.approximations import random_kitchen_sinks
 
 class SensitivityBasedIS(BayesianCoresetAlgorithm):
 
