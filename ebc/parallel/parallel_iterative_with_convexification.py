@@ -1,11 +1,41 @@
-from bca import BayesianCoresetAlgorithm
+from ebc.bca import BayesianCoresetAlgorithm
 import numpy as np
-from approximations import random_kitchen_sinks
+from ebc.approximations import random_kitchen_sinks
+import multiprocessing as mp
+from multiprocessing import get_context
 
-class SensitivityBasedFW(BayesianCoresetAlgorithm):
+def update_weights(w, n, likelihood_gram_matrix, next_best_ind):
+        '''
+        Implementation of Step 4 of Generic Algorithm
+        '''
+        # Closed-form line search for step size
+        sensitivities = np.sqrt(np.diag(likelihood_gram_matrix)).reshape(-1, 1)
+        w = w.reshape(-1, 1)
+
+        first_norm = likelihood_gram_matrix.sum(axis = 0)[next_best_ind] * np.sum(sensitivities) / sensitivities[next_best_ind]
+        second_norm = np.sum(likelihood_gram_matrix @ w)
+        third_norm = (likelihood_gram_matrix @ w)[next_best_ind] * np.sum(sensitivities) / sensitivities[next_best_ind]
+        fourth_norm = w.T @ likelihood_gram_matrix @ w
+
+        numerator = float(first_norm) - float(second_norm) - float(third_norm) + float(fourth_norm)
+
+        first_norm = likelihood_gram_matrix[next_best_ind, next_best_ind] * (np.sum(sensitivities) / sensitivities[next_best_ind]) ** 2
+        denominator = float(first_norm) - 2 * float(third_norm) + float(fourth_norm)
+
+        gamma = numerator / denominator
+
+        # Add / reweight datapoints in coreset
+        indic = np.zeros(n).reshape(-1, 1)
+        indic[next_best_ind] = 1
+
+        return (1 - gamma) * w + gamma * np.sum(sensitivities) / sensitivities[next_best_ind] * indic
+
+class ParallelSensitivityBasedFW(BayesianCoresetAlgorithm):
 
     def __init__(self, X, y=None):
         super().__init__(X, y)
+        self.__update_weights = update_weights
+        
 
     def __estimate_likelihood_gram_matrix(self, norm, norm_attributes):
         '''
@@ -51,32 +81,7 @@ class SensitivityBasedFW(BayesianCoresetAlgorithm):
         '''
         Implementation of Step 3 of Generic Algorithm
         '''
-        return np.argmax(directions)
-
-    def __update_weights(self, directions, likelihood_gram_matrix, next_best_ind):
-        '''
-        Implementation of Step 4 of Generic Algorithm
-        '''
-        # Closed-form line search for step size
-        sensitivities = np.sqrt(np.diag(likelihood_gram_matrix)).reshape(-1, 1)
-
-        first_norm = likelihood_gram_matrix.sum(axis = 0)[next_best_ind] * np.sum(sensitivities) / sensitivities[next_best_ind]
-        second_norm = np.sum(likelihood_gram_matrix @ self.w)
-        third_norm = (likelihood_gram_matrix @ self.w)[next_best_ind] * np.sum(sensitivities) / sensitivities[next_best_ind]
-        fourth_norm = self.w.T @ likelihood_gram_matrix @ self.w
-
-        numerator = float(first_norm) - float(second_norm) - float(third_norm) + float(fourth_norm)
-
-        first_norm = likelihood_gram_matrix[next_best_ind, next_best_ind] * (np.sum(sensitivities) / sensitivities[next_best_ind]) ** 2
-        denominator = float(first_norm) - 2 * float(third_norm) + float(fourth_norm)
-
-        gamma = numerator / denominator
-
-        # Add / reweight datapoints in coreset
-        indic = np.zeros(self.n).reshape(-1, 1)
-        indic[next_best_ind] = 1
-
-        return (1 - gamma) * self.w + gamma * np.sum(sensitivities) / sensitivities[next_best_ind] * indic
+        return np.argsort(directions.flatten())[::-1][:mp.cpu_count()].tolist()
 
     def run(self, k = 10, likelihood_gram_matrix = None, norm = "2", norm_attributes = None):
         '''
@@ -102,16 +107,27 @@ class SensitivityBasedFW(BayesianCoresetAlgorithm):
         indic[next_best_ind] = 1
         self.w = (np.sum(sensitivities) / sensitivities * indic).reshape(-1, 1)
 
-        for _ in range(k-1):
+        # Get the number of chunks to parallelize
+        if k % mp.cpu_count() == 0:
+            chunks = int((k-1) // mp.cpu_count())
+        else:
+            chunks = int((k-1) // mp.cpu_count()) + 1
+
+        for _ in range(chunks):
             # Step 2
             directions = self.__estimate_directions(likelihood_gram_matrix)
 
             # Step 3
-            next_best_ind = self.__choose_next_index(directions)
-            if next_best_ind not in self.I:
-                self.I.append(next_best_ind)
+            next_best_inds = self.__choose_next_index(directions)
+
+            for ind in next_best_inds:
+                if ind not in self.I:
+                    self.I.append(ind)
 
             # Step 4
-            self.w = self.__update_weights(directions, likelihood_gram_matrix, next_best_ind).reshape(-1, 1)
+            pool = get_context("fork").Pool(mp.cpu_count())
+            output = [pool.apply(self.__update_weights, args = [self.w.reshape(-1, 1), self.n, likelihood_gram_matrix, ind]) for ind in next_best_inds]
+            pool.close()
+            self.w = np.concatenate(output, axis = 1).mean(axis = 1).reshape(-1, 1)
 
         return self.w, self.I

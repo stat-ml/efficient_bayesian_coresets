@@ -1,7 +1,7 @@
 from asyncio.events import BaseDefaultEventLoopPolicy
-from bca import BayesianCoresetAlgorithm
+from ebc.bca import BayesianCoresetAlgorithm
 import numpy as np
-from approximations import RWMH, random_kitchen_sinks
+from ebc.approximations import RWMH, random_kitchen_sinks
 
 class SparseVI(BayesianCoresetAlgorithm):
 
