@@ -73,10 +73,13 @@ def random_kitchen_sinks(X, y = None, weights = 1, approx = "Laplace", log_likel
     elif approx == "MCMC":
         # Choose random subsample
         rand_ind = np.random.choice(np.arange(n), MCMC_subs_size, replace = False)
-        if y:
-            y = y[rand_ind]
+        if y is None:
+            y_use = None
+        else:
+            y_use = y[rand_ind]
+
         # Approximate via MCMC on subsample and sample feature vectors...
-        samples = RWMH(X = X[rand_ind], y = y, weights = np.ones(n).reshape(-1, 1), S = S + burnout, log_posterior = total_log_lik, 
+        samples = RWMH(X = X[rand_ind], y = y_use, weights = np.ones(n).reshape(-1, 1), S = S + burnout, log_posterior = total_log_lik, 
                        log_posterior_start_value = log_likelihood_start_value, burnout = burnout).reshape(S, -1)
                 
     # ...and gradient dimension indices
