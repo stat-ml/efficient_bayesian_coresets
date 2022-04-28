@@ -69,8 +69,6 @@ class SensitivityBasedFW(BayesianCoresetAlgorithm):
 
         first_norm = likelihood_gram_matrix[next_best_ind, next_best_ind] * (np.sum(sensitivities) / sensitivities[next_best_ind]) ** 2
         denominator = float(first_norm) - 2 * float(third_norm) + float(fourth_norm)
-        if denominator == 0:
-            denominator = 1e-10
 
         gamma = numerator / denominator
 

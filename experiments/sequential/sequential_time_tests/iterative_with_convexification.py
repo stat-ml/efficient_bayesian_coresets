@@ -84,7 +84,9 @@ class SensitivityBasedFW(BayesianCoresetAlgorithm):
         '''
         Implementation of Generic Algorithm
         '''
-        
+        import time
+
+        start = time.time()
         # Step 1
         if likelihood_gram_matrix is None:
             if norm.lower() not in ["2", "f"]:
@@ -94,27 +96,45 @@ class SensitivityBasedFW(BayesianCoresetAlgorithm):
 
         # Initialization
         sensitivities = np.sqrt(np.diag(likelihood_gram_matrix)).reshape(-1, 1)
+        step1 = time.time() - start
 
+        step2 = 0
+        step3 = 0
+        step4 = 0
+
+        start = time.time()
         # Greedy initial vertex selection
         directions = likelihood_gram_matrix.sum(axis = 0).reshape(-1, 1) / sensitivities
+        step2 += time.time() - start
+
+        start = time.time()
         next_best_ind = np.argmax(directions)
         self.I.append(next_best_ind)
-
+        step3 += time.time() - start
+        
+        start = time.time()
         # Initialize w with full weight on f
         indic = np.zeros(self.n).reshape(-1, 1)
         indic[next_best_ind] = 1
         self.w = (np.sum(sensitivities) / sensitivities * indic).reshape(-1, 1)
+        step4 += time.time() - start
 
         for _ in range(k-1):
+            start = time.time()
             # Step 2
             directions = self.__estimate_directions(likelihood_gram_matrix)
+            step2 += time.time() - start
 
+            start = time.time()
             # Step 3
             next_best_ind = self.__choose_next_index(directions)
             if next_best_ind not in self.I:
                 self.I.append(next_best_ind)
+            step3 += time.time() - start
 
+            start = time.time()
             # Step 4
             self.w = self.__update_weights(directions, likelihood_gram_matrix, next_best_ind).reshape(-1, 1)
+            step4 += time.time() - start
 
-        return self.w, self.I
+        return step1, step2, step3, step4
