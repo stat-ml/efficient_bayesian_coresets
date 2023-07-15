@@ -9,7 +9,7 @@ class SensitivityBasedIS(BayesianCoresetAlgorithm):
     def __init__(self, X, y = None):
         super().__init__(X, y)
 
-    def __estimate_likelihood_gram_matrix(self, norm, norm_attributes):
+    def estimate_likelihood_gram_matrix(self, norm, norm_attributes):
         '''
         Implementation of Step 1 of Generic Algorithm
         '''
@@ -69,7 +69,7 @@ class SensitivityBasedIS(BayesianCoresetAlgorithm):
                                      MCMC_subs_size = MCMC_subs_size)
             return v @ v.T
 
-    def __estimate_directions(self, likelihood_gram_matrix):
+    def estimate_directions(self, likelihood_gram_matrix):
         '''
         Implementation of Step 2 of Generic Algorithm
         '''
@@ -111,10 +111,10 @@ class SensitivityBasedIS(BayesianCoresetAlgorithm):
             if norm.lower() not in ["uniform", "chebyshev", "2", "f"]:
                 raise NotImplementedError
             else:
-                likelihood_gram_matrix = self.__estimate_likelihood_gram_matrix(norm, norm_attributes)
+                likelihood_gram_matrix = self.estimate_likelihood_gram_matrix(norm, norm_attributes)
 
         # Step 2
-        sensitivities = self.__estimate_directions(likelihood_gram_matrix)
+        sensitivities = self.estimate_directions(likelihood_gram_matrix)
 
         # Step 3 is excluded in this algorithm
         # pass
