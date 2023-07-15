@@ -105,22 +105,29 @@ class SensitivityBasedIS(BayesianCoresetAlgorithm):
             Dictionary with norm parameters. 
             Uniform norm: {"num_clusters": ..., "R": ...}
         '''
-
+        import time
+        start = time.time()
         # Step 1
         if likelihood_gram_matrix is None:
             if norm.lower() not in ["uniform", "chebyshev", "2", "f"]:
                 raise NotImplementedError
             else:
                 likelihood_gram_matrix = self.__estimate_likelihood_gram_matrix(norm, norm_attributes)
+        step1 = time.time() - start
 
+        start = time.time()
         # Step 2
         sensitivities = self.__estimate_directions(likelihood_gram_matrix)
+        step2 = time.time() - start
 
         # Step 3 is excluded in this algorithm
         # pass
+        step3 = 0
 
+        start = time.time()
         # Step 4
         self.w = self.__update_weights(sensitivities, k)
         self.I = np.arange(self.n)[self.w[:, 0] > 0].tolist()
+        step4 = time.time() - start
 
-        return self.w, self.I
+        return step1, step2, step3, step4
