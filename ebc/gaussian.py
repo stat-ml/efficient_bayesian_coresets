@@ -18,7 +18,7 @@ def gaussian_multivariate_log_likelihood(x, mu, sigma):
     return -1/2 * (np.linalg.slogdet(sigma)[1] + 1e-15 + (x - mu).T @ np.linalg.pinv(sigma) @ (x-mu) + mu.shape[0] * np.log(2 * np.pi))
 
 def gaussain_univaraite_log_likelihood(x, mu, sigma):
-    return -1/2 * (np.log(2 * np.pi) - np.log(sigma ** 2) - ((x - mu) / sigma) ** 2)
+    return -1/2 * (np.log(2 * np.pi * sigma ** 2) - ((x - mu) / sigma) ** 2)
 
 def gaussian_KL(sigma_p, sigma_q, mu_p, mu_q):
     # https://mr-easy.github.io/2020-04-16-kl-divergence-between-2-gaussian-distributions/

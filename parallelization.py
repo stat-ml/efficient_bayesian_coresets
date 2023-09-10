@@ -20,8 +20,12 @@ def parallelize(alg, x, k, norm, na, distributed_indices, alg_name = "SBIS", y =
             output = [pool.apply(apply_svi, args = [alg, x[ind, :], k, na, None, None]) for ind in distributed_indices]
     pool.close()
 
-    w = np.concatenate(output)
-    return w
+    w = np.zeros((len(x), 1))
+    for i, ind in enumerate(distributed_indices):
+        w[ind] = output[i]
+
+    #w = np.concatenate(output)
+    return w, output
 
 def apply_algorithm(alg, x = None, k = None, norm = None, na = None, likelihood_gram_matrix = None, y = None):
     if y is not None:
