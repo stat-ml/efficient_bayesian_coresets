@@ -1,28 +1,26 @@
 # Distributed Bayesian Coresets
 
-Bayesian coreset is a small weighted subsample of the original data which aims to preserve the full posterior. There are several algorithms for constructing a coreset,
+A Bayesian coreset is a small weighted subsample of the original data which aims to preserve the full posterior. There are several algorithms for constructing a coreset,
 - Non-iterative: 
   - Sensitivity-based Importance Sampling **(Campbell, Broderick 2019)**.
 - Iterative:
   - With constraint convexification: 
-    - Sensitivity-based Frank-Wolf **(Campbell, Broderick 2019)**.
+    - Sensitivity-based Frank-Wolfe **(Campbell, Broderick 2019)**.
   - Without constraint convexification: 
     - Greedy Iterative Geodesic Approach **(Campbell, Broderick 2018)**.
     - Iterative Hard Thresholding **(Zhang et al. 2021)**.
     - Sparse Variational Inference **(Campbell, Beronov 2019)**.
 
-All them require at least one round of likelihood function estimation on the full dataset.
+All of them require at least one round of likelihood function estimation on the full dataset.
 
 A convenient way to speed up such construction without changing the underlying algorithms is to build parts of the coreset on separate processors in parallel. This distributed setting is well studied in the frequentist literature for the problem of preserving K-Means clustering **(Har-Peled et al. 2004)**. If cluster centers are fixed, then one can arbitrarily partition the dataset into $r$ chunks and build a coreset for each chunk. The union of the resulting coresets is the coreset for the full dataset. In this strategy, cluster centers can be viewed as anchors which are sufficient to preserve the dataset's global properties even in the absence of the full data.
 
 In the Bayesian case, **(Campbell et al. (2019)** formulated error upper bounds for random data partitioning. However, these bounds describe the worst-case scenario when the processors have no information of the dataset's geometry. 
 
 We use relations between K-Means and EM algorithms to adapt the anchoring approach from the frequentist setting and propose a partitioning strategy that uses maximum likelihood estimates as anchors of the dataset’s global properties. A point $X_i$ is assigned to a processor $w$ with probability
-$$
-  \begin{align*}
-    p(X_i \in w) = \frac{\left|\ell(X_i \mid \hat{\theta}_{ML})\right|}{\sum_{j=1}^N \left|\ell(X_j \mid \hat{\theta}_{ML})\right|} = \frac{\left|\ell_i(\hat{\theta}_{ML})\right|}{\sum_{j=1}^N \left|\ell_j(\hat{\theta}_{ML})\right|},
-  \end{align*}
-$$
+```math
+p(X_i \in w) = \frac{\left|\ell(X_i \mid \hat{\theta}_{ML})\right|}{\sum_{j} \left|\ell(X_j \mid \hat{\theta}_{ML})\right|} = \frac{\left|\ell_i(\hat{\theta}_{ML})\right|}{\sum_{j} \left|\ell_j(\hat{\theta}_{ML})\right|},
+```
 without replacement. A coreset construction algorithm is then set to output a coreset of size $k / W$, where $W$ is the number of workers. It is then run on each processor concurrently, and produced coresets are combined.
 
 Since frequentist guarantees are applicable to arbitrary partitioning strategy, we expect our approach to be comparable in quality with random partitioning on datasets which are well-clustered by K-Means and superior to the latter on data with more sophisticated geometry on which K-Means fails.
@@ -41,7 +39,7 @@ These experiments demonstrated that
 
 Additionally, we found that these results hold irrespective of the number of processors.
 
-The experiments can be replicated by running respective notebooks from the `examples/` folder. Raw data generated during our runs is located in the `data/` folder and corresponding plots are  located in the `plots/` folder.
+The experiments can be replicated by running respective notebooks from the `examples/` folder. Raw data generated during our runs is located in the `data/` folder and corresponding plots are located in the `plots/` folder.
 
 ## Implementation
 
@@ -56,16 +54,21 @@ Although our experiments were conducted with the Frank-Wolfe method, `ebc` libra
   - `iterative_with_convexification.py`: implementation of `SensitivityBasedFW()` class.
   - `iterative_no_convexification.py`: implementation of `GIGA()`, `IHT()`, and `SparseVI()` class.
 
-The example below shows how to run the Sensitivity-based Frank-Wolf method using `ebc`.
+The example below shows how to run the Sensitivity-based Frank-Wolfe method using `ebc`.
 ``` python
 from ebc.sequential.iterative_with_convexification import SensitivityBasedFW
 
 # Define log likelihood
 def log_likelihood(params, X, y, weights):
-  mu = params[:d].reshape(-1, 1)
-  sigma = np.diag(params[d:].reshape(-1, 1)[:, 0])
-  return np.diag(gaussian_multivariate_log_likelihood(X.T, mu, sigma)).
-reshape(-1, 1)
+    mu = params[:d].reshape(-1, 1)
+    sigma = np.diag(params[d:].reshape(-1, 1)[:, 0])
+    return np.diag(gaussian_multivariate_log_likelihood(X.T, mu, sigma)).reshape(-1, 1)
+
+def grad_log_likelihood(params, X, y, weights):
+    d = X.shape[1]
+    mu = params[:d].reshape(-1, 1)
+    sigma = np.diag(params[d:].reshape(-1, 1)[:, 0])
+    return (-np.linalg.inv(sigma) @ (X.T - mu)).reshape(-1, X.shape[1])
 
 # Set parameters
 na = {"log_likelihood": log_likelihood, 
@@ -85,9 +88,9 @@ w2, I2 = sbfw.run(k = 10, likelihood_gram_matrix = likelihood_gram_matrix, norm 
 
 ### Distributed
 
-The partitioning strategies we tested are implemented in `splitted.py`. Parallel coreset construction with the Frank-Wolde algorithm is is implemented in `parallelization.py`. This file also contains an example of running a different algorithm, SparseVI, in the distributed setting which can be used for generalizations. 
+The partitioning strategies we tested are implemented in `splitted.py`. Parallel coreset construction with the Frank-Wolfe algorithm is is implemented in `parallelization.py`. This file also contains an example of running a different algorithm, SparseVI, in the distributed setting which can be used for generalizations. 
 
-The example below shows how to run the distributed version of the Frank-Wolf method using our partitioning strategy.
+The example below shows how to run the distributed version of the Frank-Wolfe method using our partitioning strategy.
 ``` python
 from ebc.sequential.iterative_with_convexification import SensitivityBasedFW
 from splitting import split_based_on_ML, distribute
@@ -95,10 +98,15 @@ from parallelization import parallelize
 
 # Define log likelihood
 def log_likelihood(params, X, y, weights):
-  mu = params[:d].reshape(-1, 1)
-  sigma = np.diag(params[d:].reshape(-1, 1)[:, 0])
-  return np.diag(gaussian_multivariate_log_likelihood(X.T, mu, sigma)).
-reshape(-1, 1)
+    mu = params[:d].reshape(-1, 1)
+    sigma = np.diag(params[d:].reshape(-1, 1)[:, 0])
+    return np.diag(gaussian_multivariate_log_likelihood(X.T, mu, sigma)).reshape(-1, 1)
+
+def grad_log_likelihood(params, X, y, weights):
+    d = X.shape[1]
+    mu = params[:d].reshape(-1, 1)
+    sigma = np.diag(params[d:].reshape(-1, 1)[:, 0])
+    return (-np.linalg.inv(sigma) @ (X.T - mu)).reshape(-1, X.shape[1])
 
 # Set parameters
 na = {"log_likelihood": log_likelihood, 
@@ -111,10 +119,12 @@ na = {"log_likelihood": log_likelihood,
       "log_posterior_start_value": np.ones(2 * d)}
 
 # Partition
-# Note: for better efficiency, in the notebooks, we maximize each likelihood explicitly as opposed to running general likelihood optimization
+# Note: for better efficiency, in the notebooks, we maximize each likelihood explicitly
+# as opposed to running general likelihood optimization
 full_inds = split_based_on_ML(x)
 
 # Run in parallel
-w, _ = parallelize(alg = SensitivityBasedFW, x = x, k = int(i // mp.cpu_count()), norm = "2", na = na, distributed_indices = full_inds)
+w, _ = parallelize(alg = SensitivityBasedFW, x = x, k = int(i // mp.cpu_count()), norm = "2",
+                   na = na, distributed_indices = full_inds)
 ```
 
