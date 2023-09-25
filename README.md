@@ -1,5 +1,8 @@
 # Distributed Bayesian Coresets
 
+> Vladimir Omelyusik and Maxim Panov (2023). Distributed Bayesian Coresets. In proceedings of The 11th International Conference on
+Analysis of Images, Social Networks and Texts – [2023](https://aistconf.org). 
+
 A Bayesian coreset is a small weighted subsample of the original data which aims to preserve the full posterior. There are several algorithms for constructing a coreset,
 - Non-iterative: 
   - Sensitivity-based Importance Sampling **(Campbell, Broderick [2019](https://www.jmlr.org/papers/volume20/17-613/17-613.pdf))**.
