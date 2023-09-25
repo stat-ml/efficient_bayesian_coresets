@@ -2,20 +2,20 @@
 
 A Bayesian coreset is a small weighted subsample of the original data which aims to preserve the full posterior. There are several algorithms for constructing a coreset,
 - Non-iterative: 
-  - Sensitivity-based Importance Sampling **(Campbell, Broderick 2019)**.
+  - Sensitivity-based Importance Sampling **(Campbell, Broderick [2019](https://www.jmlr.org/papers/volume20/17-613/17-613.pdf))**.
 - Iterative:
   - With constraint convexification: 
-    - Sensitivity-based Frank-Wolfe **(Campbell, Broderick 2019)**.
+    - Sensitivity-based Frank-Wolfe **(Campbell, Broderick [2019](https://www.jmlr.org/papers/volume20/17-613/17-613.pdf))**.
   - Without constraint convexification: 
-    - Greedy Iterative Geodesic Approach **(Campbell, Broderick 2018)**.
-    - Iterative Hard Thresholding **(Zhang et al. 2021)**.
-    - Sparse Variational Inference **(Campbell, Beronov 2019)**.
+    - Greedy Iterative Geodesic Approach **(Campbell, Broderick [2018](http://proceedings.mlr.press/v80/campbell18a/campbell18a.pdf))**.
+    - Iterative Hard Thresholding **(Zhang et al. [2021](http://proceedings.mlr.press/v130/zhang21g/zhang21g.pdf))**.
+    - Sparse Variational Inference **(Campbell, Beronov [2019](https://proceedings.neurips.cc/paper/2019/file/7bec7e63a493e2d61891b1e4051ef75a-Paper.pdf))**.
 
 All of them require at least one round of likelihood function estimation on the full dataset.
 
-A convenient way to speed up such construction without changing the underlying algorithms is to build parts of the coreset on separate processors in parallel. This distributed setting is well studied in the frequentist literature for the problem of preserving K-Means clustering **(Har-Peled et al. 2004)**. If cluster centers are fixed, then one can arbitrarily partition the dataset into $r$ chunks and build a coreset for each chunk. The union of the resulting coresets is the coreset for the full dataset. In this strategy, cluster centers can be viewed as anchors which are sufficient to preserve the dataset's global properties even in the absence of the full data.
+A convenient way to speed up such construction without changing the underlying algorithms is to build parts of the coreset on separate processors in parallel. This distributed setting is well studied in the frequentist literature for the problem of preserving K-Means clustering **(Har-Peled et al. [2004](https://dl.acm.org/doi/pdf/10.1145/1007352.1007400?casa_token=o9veX8qyQgAAAAAA:bVIJKMjKT5LdNvz2aNBOztK805-tq7EVuWnRSahvl9E_w27zfJ5D0AWd-rGVYIK4psVZIP9CAh9E))**. If cluster centers are fixed, then one can arbitrarily partition the dataset into $r$ chunks and build a coreset for each chunk. The union of the resulting coresets is the coreset for the full dataset. In this strategy, cluster centers can be viewed as anchors which are sufficient to preserve the dataset's global properties even in the absence of the full data.
 
-In the Bayesian case, **(Campbell et al. (2019)** formulated error upper bounds for random data partitioning. However, these bounds describe the worst-case scenario when the processors have no information of the dataset's geometry. 
+In the Bayesian case, **(Campbell et al. [2019](https://www.jmlr.org/papers/volume20/17-613/17-613.pdf))** formulated error upper bounds for random data partitioning. However, these bounds describe the worst-case scenario when the processors have no information of the dataset's geometry. 
 
 We use relations between K-Means and EM algorithms to adapt the anchoring approach from the frequentist setting and propose a partitioning strategy that uses maximum likelihood estimates as anchors of the dataset’s global properties. A point $X_i$ is assigned to a processor $w$ with probability
 ```math
